@@ -1,11 +1,21 @@
 ---
 name: implementing-builder-codes
-description: Integrate Base Builder Codes (ERC-8021) into web3 applications for onchain transaction attribution. Use when a project needs to append dataSuffix to transactions on Base L2, whether using Wagmi, Viem, or Privy. Covers EOA transactions, ERC-4337 smart wallets, and EIP-5792 sendCalls. Handles project analysis to detect frameworks, locating transaction call sites, and replacing them with attributed versions.
+description: Integrate Base Builder Codes (ERC-8021) into web3 applications for onchain transaction attribution and referral fee earning. Use when a project needs to append a builder code or dataSuffix to transactions on Base L2, whether using Wagmi, Viem, Privy, ethers.js, or raw window.ethereum. Covers phrases like "add builder codes", "integrate builder codes", "earn referral fees on Base transactions", "append a builder code to my transactions", "transaction attribution", "Builder Code integration", or "attribute transactions to my app". Handles project analysis to detect frameworks, locating transaction call sites, and replacing them with attributed versions.
 ---
 
 # Builder Codes Integration
 
-Integrate [Base Builder Codes](https://base.dev) into an onchain application. Builder Codes append an ERC-8021 attribution suffix to transaction calldata so Base can attribute activity to your app. No smart contract changes required.
+Integrate [Base Builder Codes](https://base.dev) into an onchain application. Builder Codes append an ERC-8021 attribution suffix to transaction calldata so Base can attribute activity to your app and you can earn referral fees. No smart contract changes required.
+
+## When to Use This Skill
+
+Use this skill when a developer asks to:
+
+- "Add builder codes to my application"
+- "How do I append a builder code to my transactions?"
+- "I want to earn referral fees on Base transactions"
+- "Integrate builder codes"
+- Set up transaction attribution on Base
 
 ## Prerequisites
 
@@ -18,20 +28,22 @@ Copy this checklist and track progress:
 
 ```
 Builder Codes Integration:
-- [ ] Step 1: Analyze the project (detect framework and wallet type)
+- [ ] Step 1: Detect framework (Required First Step)
 - [ ] Step 2: Install dependencies
 - [ ] Step 3: Generate the dataSuffix constant
 - [ ] Step 4: Apply attribution (framework-specific)
 - [ ] Step 5: Verify attribution is working
 ```
 
-### Step 1: Analyze the project
+## Framework Detection (Required First Step)
 
-Determine the framework and wallet setup by inspecting:
+Before implementing, determine the framework in use.
+
+### 1. Read package.json and scan source files
 
 ```bash
-# Check package.json for framework
-grep -E "wagmi|@privy-io/react-auth|viem" package.json
+# Check for framework dependencies
+grep -E "wagmi|@privy-io/react-auth|viem|ethers" package.json
 
 # Check for smart wallet / account abstraction usage
 grep -rn "useSendCalls\|sendCalls\|ERC-4337\|useSmartWallets" src/
@@ -43,11 +55,31 @@ grep -rn "useSendTransaction\|sendTransaction\|writeContract\|useWriteContract" 
 grep "@privy-io/react-auth" package.json
 ```
 
-**Decision tree:**
+### 2. Classify into one framework
 
-- **Privy detected** (`@privy-io/react-auth` v3.13.0+) → See [reference/privy.md](reference/privy.md)
-- **Wagmi detected** (without Privy) → See [reference/wagmi.md](reference/wagmi.md)
+| Framework | Detection Signal |
+|-----------|-----------------|
+| `privy`   | `@privy-io/react-auth` in package.json or imports |
+| `wagmi`   | `wagmi` in package.json or imports (without Privy) |
+| `viem`    | `viem` in package.json, no React framework |
+| `rpc`     | `ethers`, `window.ethereum`, or no Web3 library detected |
+
+Priority order if multiple are detected: **Privy > Wagmi > Viem > Standard RPC**
+
+### 3. Confirm with user
+
+Before proceeding, confirm the detected framework:
+
+> "I detected you are using [Framework]. I'll implement builder codes using the [Framework] approach — does that sound right?"
+
+Wait for user confirmation before implementing.
+
+### Implementation Path
+
+- **Privy** (`@privy-io/react-auth` v3.13.0+) → See [reference/privy.md](reference/privy.md)
+- **Wagmi** (without Privy) → See [reference/wagmi.md](reference/wagmi.md)
 - **Viem only** (no React framework) → See [reference/viem.md](reference/viem.md)
+- **Standard RPC** (ethers.js or raw `window.ethereum`) → See [reference/rpc.md](reference/rpc.md)
 
 ### Step 2: Install dependencies
 
@@ -73,12 +105,25 @@ export const DATA_SUFFIX = Attribution.toDataSuffix({
 
 Follow the framework-specific guide:
 
-- **Privy**: See [reference/privy.md](reference/privy.md) — plugin-based, one config change
-- **Wagmi (client-level)**: See [reference/wagmi.md](reference/wagmi.md) — add `dataSuffix` to config
-- **Viem (client-level)**: See [reference/viem.md](reference/viem.md) — add `dataSuffix` to wallet client
-- **Smart Wallets (EIP-5792 sendCalls)**: See [reference/smart-wallets.md](reference/smart-wallets.md) — pass via `capabilities`
+#### Privy Implementation
 
-**Preferred approach**: Configure at the **client level** so all transactions are automatically attributed. Only use per-transaction approach if you need conditional attribution.
+See [reference/privy.md](reference/privy.md) — plugin-based, one config change required.
+
+#### Wagmi Implementation
+
+See [reference/wagmi.md](reference/wagmi.md) — add `dataSuffix` to Wagmi client config.
+
+#### Viem Implementation
+
+See [reference/viem.md](reference/viem.md) — add `dataSuffix` to wallet client.
+
+#### Standard RPC Implementation
+
+See [reference/rpc.md](reference/rpc.md) — append `DATA_SUFFIX` to transaction data for ethers.js or raw `window.ethereum`.
+
+**Preferred approach**: Configure at the **client level** so all transactions are automatically attributed. Only use the per-transaction approach if you need conditional attribution.
+
+For Smart Wallets (EIP-5792 `sendCalls`): See [reference/smart-wallets.md](reference/smart-wallets.md) — pass via `capabilities`.
 
 ### Step 5: Verify attribution
 
@@ -109,8 +154,11 @@ grep -rn "sendTransaction\|writeContract\|sendRawTransaction" src/
 # Privy embedded wallet calls
 grep -rn "sendTransaction\|signTransaction" src/
 
-# ethers.js (if migrating)
-grep -rn "signer.sendTransaction\|contract.connect" src/
+# ethers.js
+grep -rn "signer\.sendTransaction\|contract\.connect" src/
+
+# Raw window.ethereum
+grep -rn "window\.ethereum\|eth_sendTransaction" src/
 ```
 
 For client-level integration (Wagmi/Viem/Privy), you typically only need to modify the config file — individual transaction call sites remain unchanged.
